@@ -52,10 +52,8 @@ class ContentManager:
     # Main API
 
     @contextmanager
-    def load_changes(
-            self, since: str, *,
-            output: TextIO = sys.stdout, show_progress: bool = True) -> 'ContentUpdateRunner':  # noqa; E501
-        yield ContentUpdateRunner(self, since, output=output, show_progress=show_progress)  # noqa: E501
+    def load_changes(self, since: str, **kwargs) -> 'ContentUpdateRunner':
+        yield ContentUpdateRunner(self, since, **kwargs)
 
     async def add(self, src: Path) -> DatabaseItem:
         """Manually insert specific new documents into database.
@@ -197,15 +195,9 @@ class ContentManager:
 
 class ContentUpdateRunner(BaseUpdateRunner):
 
-    def __init__(
-            self, manager: ContentManager, commit: str, *,
-            prompt: Prompt = None, output: TextIO = sys.stdout,
-            show_progress: bool = True):
-
+    def __init__(self, manager: ContentManager, commit: str, **kwargs):
         self.commit = commit
-        BaseUpdateRunner.__init__(
-            self, manager,
-            prompt=prompt, output=output, show_progress=show_progress)
+        BaseUpdateRunner.__init__(self, manager, **kwargs)
 
     @property
     def preview(self) -> str:

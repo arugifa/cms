@@ -52,6 +52,7 @@ class GitRepository:
             self._repo.index.add(map(str, files))
         else:
             # Add all untracked files (i.e., new or renamed files).
+            # TODO: Wrap git errors into GitError() (03/2020)
             self._repo.index.add(self._repo.untracked_files)
 
             # Add all changes not staged for commit.
