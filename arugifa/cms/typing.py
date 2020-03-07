@@ -6,30 +6,32 @@ from arugifa.cms.exceptions import FileProcessingError, SourceParsingError
 # from arugifa.cms.handlers import BaseFileHandler
 
 
-# Content
-
-SourceFilePath = Union[Path, PurePath]
-
-
 # Content Management
 
-Content = Union[Any, List[Any]]
-ContentDeletionResult = List[SourceFilePath]
+DatabaseItem = Union[Any, List[Any]]
 ContentHandlers = Mapping[str, 'BaseFileHandler']
-ContentOperationResult = Dict[str, Any]
-ContentOperationErrors = Dict[str, Exception]
-ContentUpdateErrors = Dict[str, Union[Dict[str, Exception], List[Exception]]]
-ContentUpdatePlan = Dict[str, List[Path]]
-ContentUpdatePlanErrors = List[Exception]
-ContentUpdateResult = Dict[str, Dict[str, Content]]
+
+# Content Update
+
+ContentAdditionResult = Dict[str, Any]
+ContentAdditionErrors = Dict[str, Exception]
+ContentModificationResult = Dict[str, Any]
+ContentModificationErrors = Dict[str, Exception]
+ContentRenamingResult = Dict[str, Any]
+ContentRenamingErrors = Dict[str, Exception]
+ContentDeletionResult = List[PurePath]
+ContentDeletionErrors = Dict[str, Exception]
+
+ContentUpdateResult = Dict[str, Dict[str, DatabaseItem]]
+ContentUpdateTodo = Dict[str, List[Path]]
 
 
-# File Processing
+# Source Files Processing
 
 FileProcessingResult = Dict[str, Any]
 FileProcessingErrors = Set[Union[FileProcessingError, SourceParsingError]]
 
 
-# Source Parsing
+# Source Files Parsing
 
 SourceParsingErrors = Set[SourceParsingError]

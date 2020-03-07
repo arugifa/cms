@@ -3,26 +3,29 @@
 Mainly base classes to be inherited by website's components.
 """
 
-import itertools
 import re
 import sys
 from contextlib import contextmanager
-from io import StringIO
+from itertools import chain
 from pathlib import Path, PurePath
-from typing import TextIO, Tuple
+from typing import TextIO, Tuple, Union
 
-from arugifa.cli.update import BaseUpdateRunner, Prompt
+import jinja2
+from arugifa.cli.update.base import BaseUpdateRunner
+from arugifa.cli.update.input import Prompt
 
 from arugifa.cms import exceptions
-from arugifa.cms.base.database import BaseTransaction
 from arugifa.cms.base.handlers import BaseFileHandler
 from arugifa.cms.exceptions import (
     DatabaseError, HandlerChangeForbidden, HandlerNotFound, InvalidSourceFile)
 from arugifa.cms.git import GitRepository
 from arugifa.cms.typing import (
-    Content, ContentDeletionResult, ContentHandlers, ContentOperationErrors,
-    ContentOperationResult, ContentUpdateErrors, ContentUpdatePlan,
-    ContentUpdatePlanErrors, ContentUpdateResult, SourceFilePath)
+    ContentAdditionErrors, ContentAdditionResult, ContentDeletionErrors,
+    ContentDeletionResult, ContentHandlers, ContentModificationErrors,
+    ContentModificationResult, ContentRenamingErrors, ContentRenamingResult,
+    ContentUpdateResult, ContentUpdateTodo, DatabaseItem)
+
+templates = jinja2.Environment(loader=jinja2.PackageLoader('arugifa.cms', 'templates'))
 
 
 class ContentManager:
@@ -42,29 +45,19 @@ class ContentManager:
         path of the Git repository where website's content is stored.
     """
 
-    def __init__(
-            self,
-            repository: GitRepository, handlers: ContentHandlers, db: BaseTransaction):
-
+    def __init__(self, repository: GitRepository, handlers: ContentHandlers):
         self.repository = repository
         self.handlers = handlers
-        self.db = db
 
     # Main API
 
     @contextmanager
     def load_changes(
-            self, since: str, *, output: TextIO = sys.stdout) -> 'ContentUpdateRunner':
-        # Get new DB session.
-        try:
-            yield ContentUpdateRunner(self, since, output=output)
-        except exceptions.UpdateFailed:
-            self.db.rollback()
-            raise
-        else:
-            self.db.commit()
+            self, since: str, *,
+            output: TextIO = sys.stdout, show_progress: bool = True) -> 'ContentUpdateRunner':  # noqa; E501
+        yield ContentUpdateRunner(self, since, output=output, show_progress=show_progress)  # noqa: E501
 
-    async def add(self, src: Path) -> Content:
+    async def add(self, src: Path) -> DatabaseItem:
         """Manually insert specific new documents into database.
 
         :param new:
@@ -83,7 +76,7 @@ class ContentManager:
         # Can raise DatabaseError, FileNotVersioned, HandlerNotFound, InvalidSourceFile.
         return await self.get_handler(src).insert()
 
-    async def modify(self, src: Path) -> Content:
+    async def modify(self, src: Path) -> DatabaseItem:
         """Manually update specific existing documents in database.
 
         :param existing:
@@ -102,7 +95,7 @@ class ContentManager:
         # Can raise DatabaseError, FileNotVersioned, HandlerNotFound, InvalidSourceFile.
         return await self.get_handler(src).update()
 
-    async def rename(self, src: PurePath, dst: Path) -> Content:
+    async def rename(self, src: PurePath, dst: Path) -> DatabaseItem:
         """Manually rename and update specific existing documents in database.
 
         :param existing:
@@ -149,7 +142,7 @@ class ContentManager:
 
     # Helpers
 
-    def get_handler(self, source_file: SourceFilePath) -> BaseFileHandler:
+    def get_handler(self, source_file: Union[Path, PurePath]) -> BaseFileHandler:
         """Return handler to process the source file of a document.
 
         :param document:
@@ -189,69 +182,62 @@ class ContentUpdateRunner(BaseUpdateRunner):
 
     def __init__(
             self, manager: ContentManager, commit: str, *,
-            prompt: Prompt = None, output: TextIO = sys.stdout):
+            prompt: Prompt = None, output: TextIO = sys.stdout,
+            show_progress: bool = True):
 
         self.commit = commit
-        BaseUpdateRunner.__init__(self, manager, prompt=prompt, output=output)
+        BaseUpdateRunner.__init__(
+            self, manager,
+            prompt=prompt, output=output, show_progress=show_progress)
 
     @property
     def preview(self) -> str:
-        # template = 'updates/content/preview.txt'
-        # return render_template(template, changes=changes)
-        output = StringIO()
-
-        for action, files in self.todo:
-            if files:
-                print(f"The following files have been {action}:", file=output)
-
-                for f in files:
-                    if isinstance(f, tuple):
-                        # - src_file -> dst_file
-                        print("- ", end="", file=output)
-                        print(*f, sep=" -> ", file=output)
-                    else:
-                        print(f"- {f}", file=output)
-
-        return output.getvalue()
+        template = templates.get_template('preview/success.txt')
+        return template.render(todo=self.todo)
 
     @property
     def report(self) -> str:
-        template = 'updates/content/report.txt'
-        return render_template(template, result=self.result, errors=self.errors)
+        template = templates.get_template('report/success.txt')
+        return template.render(result=self.result)
 
-    async def _plan(self) -> Tuple[ContentUpdatePlan, ContentUpdatePlanErrors]:
+    async def _plan(self) -> ContentUpdateTodo:
+        """:raise ContentUpdatePlanFailure: ..."""
         try:
-            return self.manager.repository.diff(self.commit), []
+            diff = self.manager.repository.diff(self.commit)
         except exceptions.GitError as exc:
-            return None, [exc]
+            errors = {'git_diff': exc}
+            raise exceptions.ContentUpdatePlanFailure(errors)
 
-    async def _run(self) -> Tuple[ContentUpdateResult, ContentUpdateErrors]:
-        """
-        :raise website.exceptions.ItemAlreadyExisting:
-            when trying to create documents already existing in database.
-        :raise website.exceptions.ItemNotFound:
-            when trying to modify documents not existing in database.
-        :raise website.exceptions.InvalidDocumentLocation:
-            when a source file is stored in a wrong directory.
-        """
+        return {
+            'to_add': diff['added'],
+            'to_rename': diff['renamed'],
+            'to_modify': diff['modified'],
+            'to_delete': diff['deleted'],
+        }
+
+    async def _run(self) -> ContentUpdateResult:
+        """:raise ContentUpdateRunFailure: ..."""
         result = {}
         errors = {}
 
-        document_count = len(itertools.chain(self.todo.values()))
+        document_count = len([chain(self.todo.values())])
 
         with self.progress_bar(total=document_count):
             result['added'], errors['added'] = await self.add_content()
-            result['modified'], errors['modified'] = await self.replace_content()
+            result['modified'], errors['modified'] = await self.modify_content()
             result['renamed'], errors['renamed'] = await self.rename_content()
             result['deleted'], errors['deleted'] = await self.delete_content()
 
-        return result, errors
+        if any(errors.values()):
+            raise exceptions.ContentUpdateRunFailure(errors)
 
-    async def add_content(self) -> Tuple[ContentOperationResult, ContentOperationErrors]:  # noqa: E501
+        return result
+
+    async def add_content(self) -> Tuple[ContentAdditionResult, ContentAdditionErrors]:
         result = {}
         errors = {}
 
-        for src in self.todo['added']:
+        for src in self.todo['to_add']:
             self.progress.set_description(f"Adding {src}")
 
             try:
@@ -263,15 +249,15 @@ class ContentUpdateRunner(BaseUpdateRunner):
 
         return result, errors
 
-    async def replace_content(self) -> Tuple[ContentOperationResult, ContentOperationErrors]:  # noqa: E501
+    async def modify_content(self) -> Tuple[ContentModificationResult, ContentModificationErrors]:  # noqa: E501
         result = {}
         errors = {}
 
-        for src in self.todo['replaced']:
-            self.progress.set_description(f"Replacing {src}")
+        for src in self.todo['to_modify']:
+            self.progress.set_description(f"Modifying {src}")
 
             try:
-                result[src] = await self.manager.replace(src)
+                result[src] = await self.manager.modify(src)
             except (DatabaseError, HandlerNotFound, InvalidSourceFile) as exc:
                 errors[src] = exc
 
@@ -279,11 +265,11 @@ class ContentUpdateRunner(BaseUpdateRunner):
 
         return result, errors
 
-    async def rename_content(self) -> Tuple[ContentOperationResult, ContentOperationErrors]:  # noqa: E501
+    async def rename_content(self) -> Tuple[ContentRenamingResult, ContentRenamingErrors]:  # noqa: E501
         result = {}
         errors = {}
 
-        for src, dst in self.todo['renamed']:
+        for src, dst in self.todo['to_rename']:
             self.progress.set_description(f"Renaming {src}")
 
             try:
@@ -295,11 +281,11 @@ class ContentUpdateRunner(BaseUpdateRunner):
 
         return result, errors
 
-    async def delete_content(self) -> Tuple[ContentDeletionResult, ContentOperationErrors]:  # noqa: E501
+    async def delete_content(self) -> Tuple[ContentDeletionResult, ContentDeletionErrors]:  # noqa: E501
         result = []
         errors = {}
 
-        for src in self.todo['deleted']:
+        for src in self.todo['to_delete']:
             self.progress.set_description(f"Deleting {src}")
 
             try:

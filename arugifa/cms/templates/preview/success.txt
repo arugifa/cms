@@ -1,0 +1,19 @@
+The following files will be added to database:
+{% for source_file in todo['to_add'] %}
+- {{ source_file }}
+{% endfor %}
+
+The following files will be renamed in database:
+{% for src, dst in todo['to_rename'] %}
+- {{ src }} -> {{ dst }}
+{% endfor %}
+
+The following files will be modified in database:
+{% for source_file in todo['to_modify'] %}
+- {{ source_file }}
+{% endfor %}
+
+The following files will be deleted from database:
+{% for source_file in todo['to_delete'] %}
+- {{ source_file }}
+{% endfor %}

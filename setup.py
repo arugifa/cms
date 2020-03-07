@@ -19,7 +19,7 @@ setup(
         'arugifa-cli>=0.1.0',
         'gitdb>=4.0',
         'gitpython>=3.1',
-        'sqlalchemy>=1.3',
+        'jinja2>=2.11',
         'tqdm>=4.43',
     ],
 )

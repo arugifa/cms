@@ -1,0 +1,19 @@
+The following files have been added to database:
+{% for source_file in result['added'] %}
+- {{ source_file }}
+{% endfor %}
+
+The following files have been renamed in database:
+{% for source_file in result['renamed'] %}
+- {{ source_file }}
+{% endfor %}
+
+The following files have been modified in database:
+{% for source_file in result['modified'] %}
+- {{ source_file }}
+{% endfor %}
+
+The following files have been deleted from database:
+{% for source_file in result['deleted'] %}
+- {{ source_file }}
+{% endfor %}

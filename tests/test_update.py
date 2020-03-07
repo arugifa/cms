@@ -1,11 +1,13 @@
+from io import StringIO
+from itertools import chain
 from pathlib import Path, PurePath
 from random import random
 
 import pytest
 
 from arugifa.cms import exceptions
-from arugifa.cms.handlers import BaseFileHandler
-from arugifa.cms.processors import BaseFileProcessor
+from arugifa.cms.base.handlers import BaseFileHandler
+from arugifa.cms.base.processors import BaseFileProcessor
 from arugifa.cms.update import ContentManager
 
 
@@ -31,20 +33,8 @@ class DummyHandler(BaseFileHandler):
         return self.source_file.path.name
 
 
-class AnotherDummyHandler(BaseFileHandler):
-    processor = DummyProcessor
-
-    async def insert(self):
-        return self.source_file.path.name
-
-    async def update(self):
-        return self.source_file.path.name
-
-    async def rename(self, target):
-        pass
-
-    async def delete(self):
-        return self.source_file.path.name
+class AnotherDummyHandler(DummyHandler):
+    pass
 
 
 # Tests
@@ -80,75 +70,138 @@ class TestContentManager:
     @pytest.fixture(scope='class')
     def repository(self, git, tmp_path_factory):
         tmpdir = tmp_path_factory.mktemp(self.__class__.__name__)
-        (tmpdir / 'dummy').mkdir()
+        Path(tmpdir / 'dummy').mkdir()
 
         # Initialize repository.
         repo = git.init(tmpdir)
 
-        to_rename = repo.path / 'dummy/to_rename.txt'
-        to_rename.write_text(f"{random()}")
+        to_rename = [
+            repo.path / 'dummy/to_rename.txt',
+            repo.path / 'dummy/to_rename.html',
+        ]
 
-        to_modify = repo.path / 'dummy/modified.txt'
-        to_modify.write_text(f"{random()}")
+        to_modify = [
+            repo.path / 'dummy/modified.txt',
+            repo.path / 'dummy/modified.html',
+        ]
 
-        to_delete = repo.path / 'dummy/deleted.txt'
-        to_delete.write_text(f"{random()}")
+        to_delete = [
+            repo.path / 'dummy/deleted.txt',
+            repo.path / 'dummy/deleted.html',
+        ]
 
-        repo.add(to_rename, to_modify, to_delete)
+        for source_file in chain(to_rename, to_modify, to_delete):
+            source_file.write_text(f"{random()}")
+
+        repo.add(*to_rename, *to_modify, *to_delete)
         repo.commit('HEAD~4')
 
         # Add documents.
-        added = repo.path / 'dummy/added.txt'
-        added.write_text(f"{random()}")
+        added = [
+            repo.path / 'dummy/added.txt',
+            repo.path / 'dummy/added.html',
+        ]
 
-        repo.add(added)
+        for source_file in added:
+            source_file.write_text(f"{random()}")
+
+        repo.add(*added)
         repo.commit('HEAD~3')
 
         # Rename documents.
-        repo.move(to_rename, repo.path / 'dummy/renamed.txt')
+        repo.move(to_rename[0], repo.path / 'dummy/renamed.txt')
+        repo.move(to_rename[1], repo.path / 'dummy/renamed.html')
         repo.commit('HEAD~2')
 
         # Modify documents.
-        with to_modify.open('a') as f:
-            f.write('modification')
+        with to_modify[0].open('a') as f1, to_modify[1].open('a') as f2:
+            f1.write('modification')
+            f2.write('modification')
 
-        repo.add(to_modify)
+        repo.add(*to_modify)
         repo.commit('HEAD~1')
 
         # Delete documents.
-        repo.remove(to_delete)
+        repo.remove(*to_delete)
         repo.commit('HEAD')
 
         return repo
 
     @pytest.fixture
     def content(self, db, handlers, repository):
-        return ContentManager(repository, handlers, db)
+        return ContentManager(repository, handlers)
 
-    # Update content.
+    # Load changes.
 
-    # TODO: Update at least 2 different kinds of documents (02/2019)
-    # Because that's how the content manager is intended to behave...
-    async def test_update_content(self, content, db, repository):
-        with content.load_changes('HEAD~4') as update:
+    async def test_load_changes(self, content, repository):
+        with content.load_changes('HEAD~4', output=StringIO()) as update:
             await update.plan()
             actual = await update.run()
 
         expected = {
             'added': {
-                repository.path / 'dummy/added.txt': 'added',
+                Path('dummy/added.html'): 'added.html',
+                Path('dummy/added.txt'): 'added.txt',
             },
             'modified': {
-                repository.path / 'dummy/modified.txt': 'modified',
+                Path('dummy/modified.html'): 'modified.html',
+                Path('dummy/modified.txt'): 'modified.txt',
             },
             'renamed': {
-                repository.path / 'dummy/renamed.txt': 'renamed',
+                Path('dummy/to_rename.html'): 'renamed.html',
+                Path('dummy/to_rename.txt'): 'renamed.txt',
             },
-            'deleted': {
-                repository.path / 'dummy/deleted.txt': 'deleted',
-            },
+            'deleted': [
+                Path('dummy/deleted.html'),
+                Path('dummy/deleted.txt'),
+            ],
         }
         assert actual == expected
+
+    async def test_load_changes_with_errors(self):
+        # Test UpdatePlanFailure and UpdateRunFailure
+        raise NotImplementedError
+
+    async def test_load_changes_preview(self, content, repository):
+        output = StringIO()
+
+        with content.load_changes('HEAD~4', output=output) as update:
+            await update.plan(show_preview=True)
+
+        preview = output.getvalue()
+
+        assert 'dummy/added.html' in preview
+        assert 'dummy/added.txt' in preview
+
+        assert 'dummy/modified.html' in preview
+        assert 'dummy/modified.txt' in preview
+
+        assert 'dummy/to_rename.html -> dummy/renamed.html' in preview
+        assert 'dummy/to_rename.txt -> dummy/renamed.txt' in preview
+
+        assert 'dummy/deleted.html' in preview
+        assert 'dummy/deleted.txt' in preview
+
+    async def test_load_changes_report(self, content, repository):
+        output = StringIO()
+
+        with content.load_changes('HEAD~4', output=output, show_progress=False) as update:  # noqa: E501
+            await update.plan()
+            await update.run(show_report=True)
+
+        report = output.getvalue()
+
+        assert 'dummy/added.html' in report
+        assert 'dummy/added.txt' in report
+
+        assert 'dummy/modified.html' in report
+        assert 'dummy/modified.txt' in report
+
+        assert 'dummy/to_rename.html' in report
+        assert 'dummy/to_rename.txt' in report
+
+        assert 'dummy/deleted.html' in report
+        assert 'dummy/deleted.txt' in report
 
     # Add source file.
 
@@ -186,7 +239,7 @@ class TestContentManager:
         with pytest.raises(exceptions.FileNotVersioned):
             await content.modify(source_file)
 
-    # Rename documents.
+    # Rename source file.
 
     async def test_rename_source_file(self, content):
         src = PurePath('dummy/src.txt')
@@ -214,7 +267,7 @@ class TestContentManager:
         with pytest.raises(exceptions.HandlerChangeForbidden):
             await content.rename(src, dst)
 
-    # Delete documents.
+    # Delete source file.
 
     async def test_delete_source_file(self, content):
         source_file = PurePath('dummy/delete.txt')
@@ -234,32 +287,26 @@ class TestContentManager:
 
     # Get handler.
 
-    def test_get_handler(self, content):
-        source = content.directory / 'blog/2019/article.html'
-        handler = content.get_handler(source)
-        assert handler.__class__ is content.handlers['blog']
+    def test_get_handler_with_absolute_path(self, content):
+        source_file = content.repository.path / 'dummy/handler.txt'
+        handler = content.get_handler(source_file)
+        assert isinstance(handler, content.handlers['dummy/*.txt'])
 
     def test_get_handler_with_relative_path(self, content):
-        source = PurePath('blog/article.html')
-        handler = content.get_handler(source)
-        assert handler.__class__ is content.handlers['blog']
+        source_file = PurePath('dummy/handler.txt')
+        handler = content.get_handler(source_file)
+        assert isinstance(handler, content.handlers['dummy/*.txt'])
 
     def test_get_missing_handler(self, content):
-        source = content.directory / 'reviews/article.html'
+        source_file = PurePath('handler.md')
 
         with pytest.raises(exceptions.HandlerNotFound):
-            content.get_handler(source)
+            content.get_handler(source_file)
 
-    def test_document_not_stored_in_content_directory(self, content):
-        source = PurePath('/void/article.html')
+    def test_get_not_versioned_file_handler(self, content):
+        source = PurePath('/tmp/not_versioned.html')
 
-        with pytest.raises(exceptions.InvalidDocumentLocation):
-            content.get_handler(source)
-
-    def test_document_not_categorized(self, content):
-        source = content.directory / 'article.html'
-
-        with pytest.raises(exceptions.DocumentNotCategorized):
+        with pytest.raises(exceptions.FileNotVersioned):
             content.get_handler(source)
 
 

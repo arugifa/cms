@@ -49,12 +49,12 @@ class CatchProcessorErrors(type):
 
             return wrapper
 
-        for attr, attrval in classdict.items():
-            if attr.startswith('process_'):
-                classdict[attr] = catch_processing_errors(attrval)
+        for attribute, value in classdict.items():
+            if attribute.startswith('process_'):
+                classdict[attribute] = catch_processing_errors(value)
 
-            elif attr.startswith('scan_'):
-                classdict[attr] = catch_scanning_errors(attrval)
+            elif attribute.startswith('scan_'):
+                classdict[attribute] = catch_scanning_errors(value)
 
         return type.__new__(meta, classname, supers, classdict)
 

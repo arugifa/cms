@@ -1,3 +1,10 @@
+import jinja2
+
+from arugifa.cli.update.base import BaseUpdatePlanFailure, BaseUpdateRunFailure
+
+templates = jinja2.Environment(loader=jinja2.PackageLoader('arugifa.cms', 'templates'))
+
+
 class CMSError(Exception):
     pass
 
@@ -50,3 +57,17 @@ class FileProcessingError(ContentError):
 
 class SourceParsingError(ContentError):
     """When errors raise while parsing a document."""
+
+
+# Database Update
+
+class ContentUpdatePlanFailure(BaseUpdatePlanFailure):
+    def __str__(self):
+        template = templates.get_template('preview/failure.txt')
+        return template.render(errors=self.errors)
+
+
+class ContentUpdateRunFailure(BaseUpdateRunFailure):
+    def __str__(self):
+        template = templates.get_template('report/failure.txt')
+        return template.render(errors=self.errors)
