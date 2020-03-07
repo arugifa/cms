@@ -63,17 +63,20 @@ class ContentManager:
         :param new:
             paths of documents source files.
 
-        :raise website.exceptions.ItemAlreadyExisting:
-            if a document already exists in database.
-        :raise website.exceptions.HandlerNotFound:
-            if a document doesn't have any handler defined in :attr:`handlers`.
-        :raise website.exceptions.InvalidDocumentLocation:
+        :raise arugifa.cms.exceptions.DatabaseError:
+            XXX
+        :raise arugifa.cms.exceptions.FileAlreadyAdded:
+            XXX
+        :raise arugifa.cms.exceptions.FileNotVersioned:
             when a source file is stored in a wrong directory.
+        :raise arugifa.cms.exceptions.HandlerNotFound:
+            if a document doesn't have any handler defined in :attr:`handlers`.
+        :raise arugifa.cms.exceptions.InvalidFile:
+            XXX
 
         :return:
             newly created documents.
         """
-        # Can raise DatabaseError, FileNotVersioned, HandlerNotFound, InvalidSourceFile.
         return await self.get_handler(src).insert()
 
     async def modify(self, src: Path) -> DatabaseItem:
@@ -82,17 +85,20 @@ class ContentManager:
         :param existing:
             paths of documents source files.
 
-        :raise website.exceptions.ItemNotFound:
-            if a document doesn't exist in database.
-        :raise website.exceptions.HandlerNotFound:
-            if a document doesn't have any handler defined in :attr:`handlers`.
-        :raise website.exceptions.InvalidDocumentLocation:
+        :raise arugifa.cms.exceptions.DatabaseError:
+            XXX
+        :raise arugifa.cms.exceptions.FileNotAddedYet:
+            XXX
+        :raise arugifa.cms.exceptions.FileNotVersioned:
             when a source file is stored in a wrong directory.
+        :raise arugifa.cms.exceptions.HandlerNotFound:
+            if a document doesn't have any handler defined in :attr:`handlers`.
+        :raise arugifa.cms.exceptions.InvalidFile:
+            XXX
 
         :return:
             updated documents.
         """
-        # Can raise DatabaseError, FileNotVersioned, HandlerNotFound, InvalidSourceFile.
         return await self.get_handler(src).update()
 
     async def rename(self, src: PurePath, dst: Path) -> DatabaseItem:
@@ -101,12 +107,18 @@ class ContentManager:
         :param existing:
             previous and new paths of documents source files.
 
-        :raise website.exceptions.ItemNotFound:
-            if a document doesn't exist in database.
-        :raise website.exceptions.HandlerNotFound:
-            if a document doesn't have any handler defined in :attr:`handlers`.
-        :raise website.exceptions.DifferentFilesLocation:
+        :raise arugifa.cms.exceptions.DatabaseError:
+            XXX
+        :raise arugifa.cms.exceptions.FileNotAddedYet:
+            XXX
+        :raise arugifa.cms.exceptions.FileNotVersioned:
             when a source file is stored in a wrong directory.
+        :raise arugifa.cms.exceptions.HandlerChangeForbidden:
+            when a source file is stored in a wrong directory.
+        :raise arugifa.cms.exceptions.HandlerNotFound:
+            if a document doesn't have any handler defined in :attr:`handlers`.
+        :raise arugifa.cms.exceptions.InvalidFile:
+            XXX
 
         :return:
             updated documents.
@@ -120,7 +132,7 @@ class ContentManager:
         except (AssertionError, HandlerNotFound):
             raise exceptions.HandlerChangeForbidden(src, dst)
 
-        # Can raise DatabaseError, InvalidSourceFile.
+        # Can raise DatabaseError, FileNotAddedYet, InvalidFile.
         await src_handler.rename(dst)
         return await dst_handler.update()
 
@@ -130,14 +142,19 @@ class ContentManager:
         :param removed:
             paths of deleted documents source files.
 
-        :raise website.exceptions.ItemNotFound:
-            if a document doesn't exist in database.
-        :raise website.exceptions.HandlerNotFound:
-            if a document doesn't have any handler defined in :attr:`handlers`.
-        :raise website.exceptions.InvalidDocumentLocation:
+        :raise arugifa.cms.exceptions.DatabaseError:
+            XXX
+        :raise arugifa.cms.exceptions.FileNotAddedYet:
+            XXX
+        :raise arugifa.cms.exceptions.FileNotVersioned:
             when a source file is stored in a wrong directory.
+        :raise arugifa.cms.exceptions.HandlerChangeForbidden:
+            when a source file is stored in a wrong directory.
+        :raise arugifa.cms.exceptions.HandlerNotFound:
+            if a document doesn't have any handler defined in :attr:`handlers`.
+        :raise arugifa.cms.exceptions.InvalidFile:
+            XXX
         """
-        # Can raise DatabaseError, FileNotVersioned, HandlerNotFound, InvalidSourceFile.
         return await self.get_handler(src).delete()
 
     # Helpers

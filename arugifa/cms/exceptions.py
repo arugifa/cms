@@ -43,6 +43,14 @@ class HandlerChangeForbidden(ContentError):
     pass
 
 
+class FileAlreadyAdded(ContentError):
+    pass
+
+
+class FileNotAddedYet(ContentError):
+    pass
+
+
 class FileLoadingError(ContentError):
     """Error happening when loading (i.e., reading and parsing) a source file."""
 
