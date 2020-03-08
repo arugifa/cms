@@ -1,8 +1,9 @@
-import jinja2
+from pathlib import Path, PurePath
+from typing import Iterable, Union
 
-from arugifa.cli.update.base import BaseUpdatePlanFailure, BaseUpdateRunFailure
+from arugifa.toolbox.update.base import BaseUpdatePlanFailure, BaseUpdateRunFailure
 
-templates = jinja2.Environment(loader=jinja2.PackageLoader('arugifa.cms', 'templates'))
+from arugifa.cms import templates
 
 
 class CMSError(Exception):
@@ -36,7 +37,14 @@ class FileNotVersioned(ContentError):
 
 
 class HandlerNotFound(ContentError):
-    pass
+    def __init__(self, path: Union[PurePath, Path]):
+        self.path = path
+
+    def __eq__(self, other):
+        return self.path == other.path
+
+    def __str__(self):
+        return "No handler configured"
 
 
 class HandlerChangeForbidden(ContentError):
@@ -55,16 +63,21 @@ class FileLoadingError(ContentError):
     """Error happening when loading (i.e., reading and parsing) a source file."""
 
 
-class InvalidSourceFile(ContentError):
-    pass
-
-
 class FileProcessingError(ContentError):
     pass
 
 
 class SourceParsingError(ContentError):
     """When errors raise while parsing a document."""
+
+
+class InvalidFile(ContentError):
+    def __init__(self, path: Path, errors: Iterable[Union[FileProcessingError, SourceParsingError]]):  # noqa: E501
+        self.path = path
+        self.errors = errors
+
+    def __eq__(self, other):
+        return (self.path == other.path) and (self.errors == other.errors)
 
 
 # Database Update

@@ -4,28 +4,23 @@ Mainly base classes to be inherited by website's components.
 """
 
 import re
-import sys
 from contextlib import contextmanager
 from itertools import chain
 from pathlib import Path, PurePath
-from typing import TextIO, Tuple, Union
+from typing import Tuple, Union
 
-import jinja2
-from arugifa.cli.update.base import BaseUpdateRunner
-from arugifa.cli.update.input import Prompt
+from arugifa.toolbox.update.base import BaseUpdateRunner
 
-from arugifa.cms import exceptions
+from arugifa.cms import exceptions, templates
 from arugifa.cms.base.handlers import BaseFileHandler
 from arugifa.cms.exceptions import (
-    DatabaseError, HandlerChangeForbidden, HandlerNotFound, InvalidSourceFile)
+    DatabaseError, HandlerChangeForbidden, HandlerNotFound, InvalidFile)
 from arugifa.cms.git import GitRepository
 from arugifa.cms.typing import (
     ContentAdditionErrors, ContentAdditionResult, ContentDeletionErrors,
     ContentDeletionResult, ContentHandlers, ContentModificationErrors,
     ContentModificationResult, ContentRenamingErrors, ContentRenamingResult,
     ContentUpdateResult, ContentUpdateTodo, DatabaseItem)
-
-templates = jinja2.Environment(loader=jinja2.PackageLoader('arugifa.cms', 'templates'))
 
 
 class ContentManager:
@@ -225,33 +220,42 @@ class ContentUpdateRunner(BaseUpdateRunner):
         }
 
     async def _run(self) -> ContentUpdateResult:
-        """:raise ContentUpdateRunFailure: ..."""
+        """
+        :raise ContentUpdateRunFailure: ...
+        :raise UpdateNotPlanned: ...
+        """
         result = {}
         errors = {}
 
-        document_count = len([chain(self.todo.values())])
+        document_count = sum(1 for _ in chain(self.todo.values()))
 
         with self.progress_bar(total=document_count):
+            # Can raise UpdateNotPlanned.
             result['added'], errors['added'] = await self.add_content()
             result['modified'], errors['modified'] = await self.modify_content()
             result['renamed'], errors['renamed'] = await self.rename_content()
             result['deleted'], errors['deleted'] = await self.delete_content()
 
         if any(errors.values()):
-            raise exceptions.ContentUpdateRunFailure(errors)
+            all_errors = {
+                **errors['added'], **errors['modified'],
+                **errors['renamed'], **errors['deleted'],
+            }
+            raise exceptions.ContentUpdateRunFailure(all_errors)
 
         return result
 
     async def add_content(self) -> Tuple[ContentAdditionResult, ContentAdditionErrors]:
+        """:raise UpdateNotPlanned: ..."""
         result = {}
         errors = {}
 
-        for src in self.todo['to_add']:
+        for src in self.todo['to_add']:  # Can raise UpdateNotPlanned
             self.progress.set_description(f"Adding {src}")
 
             try:
                 result[src] = await self.manager.add(src)
-            except (DatabaseError, HandlerNotFound, InvalidSourceFile) as exc:
+            except (DatabaseError, HandlerNotFound, InvalidFile) as exc:
                 errors[src] = exc
 
             self.progress.update(1)
@@ -262,12 +266,12 @@ class ContentUpdateRunner(BaseUpdateRunner):
         result = {}
         errors = {}
 
-        for src in self.todo['to_modify']:
+        for src in self.todo['to_modify']:  # Can raise UpdateNotPlanned
             self.progress.set_description(f"Modifying {src}")
 
             try:
                 result[src] = await self.manager.modify(src)
-            except (DatabaseError, HandlerNotFound, InvalidSourceFile) as exc:
+            except (DatabaseError, HandlerNotFound, InvalidFile) as exc:
                 errors[src] = exc
 
             self.progress.update(1)
@@ -278,12 +282,12 @@ class ContentUpdateRunner(BaseUpdateRunner):
         result = {}
         errors = {}
 
-        for src, dst in self.todo['to_rename']:
+        for src, dst in self.todo['to_rename']:  # Can raise UpdateNotPlanned
             self.progress.set_description(f"Renaming {src}")
 
             try:
                 result[src] = await self.manager.rename(src, dst)
-            except (DatabaseError, HandlerChangeForbidden, HandlerNotFound, InvalidSourceFile) as exc:  # noqa: E501
+            except (DatabaseError, HandlerChangeForbidden, HandlerNotFound, InvalidFile) as exc:  # noqa: E501
                 errors[src] = exc
 
             self.progress.update(1)
@@ -294,13 +298,13 @@ class ContentUpdateRunner(BaseUpdateRunner):
         result = []
         errors = {}
 
-        for src in self.todo['to_delete']:
+        for src in self.todo['to_delete']:  # Can raise UpdateNotPlanned
             self.progress.set_description(f"Deleting {src}")
 
             try:
-                self.manager.delete(src)
+                await self.manager.delete(src)
                 result.append(src)
-            except (DatabaseError, HandlerNotFound, InvalidSourceFile) as exc:
+            except (DatabaseError, HandlerNotFound, InvalidFile) as exc:
                 errors[src] = exc
 
         return result, errors

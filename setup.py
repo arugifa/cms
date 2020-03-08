@@ -16,7 +16,7 @@ setup(
     packages=find_namespace_packages(include=['arugifa.*']),
     install_requires=[
         'aiofiles>=0.4',
-        'arugifa-cli>=0.1.0',
+        'arugifa-toolbox>=0.1.0',
         'gitdb>=4.0',
         'gitpython>=3.1',
         'jinja2>=2.11',

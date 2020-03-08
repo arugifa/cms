@@ -5,7 +5,7 @@ from pathlib import Path, PurePath
 from typing import Dict, Iterable, Union
 
 from git import Repo
-from git.exc import InvalidGitRepositoryError, NoSuchPathError
+from git.exc import BadName, InvalidGitRepositoryError, NoSuchPathError
 
 from arugifa.cms import exceptions
 
@@ -89,7 +89,10 @@ class GitRepository:
 
         :return: ``added``, ``modified``, ``renamed`` and ``deleted`` files.
         """
-        diff = self._repo.commit(since).diff(until)
+        try:
+            diff = self._repo.commit(since).diff(until)
+        except BadName as exc:
+            raise exceptions.GitError(exc)
 
         pretty_diff = {
             'added': sorted(

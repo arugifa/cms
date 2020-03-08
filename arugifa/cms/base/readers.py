@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, ClassVar, Union
 
-from arugifa.cli.utils import BaseCommandLine
+from arugifa.toolbox.cli.base import BaseCommandLine
 
 
 class BaseFileReader(ABC, BaseCommandLine):

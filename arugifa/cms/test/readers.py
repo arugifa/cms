@@ -4,10 +4,9 @@ from hashlib import sha1
 from typing import ClassVar
 
 import pytest
+from arugifa.toolbox.cli.testing import BaseCommandLineTest
 
-from website.base.readers import BaseDocumentFileReader
-
-from tests.base._test_utils import BaseCommandLineTest  # noqa: I100
+from arugifa.cms.base.readers import BaseDocumentFileReader
 
 
 class BaseDocumentReaderTest(BaseCommandLineTest):
@@ -15,6 +14,7 @@ class BaseDocumentReaderTest(BaseCommandLineTest):
 
     @pytest.fixture
     def program_factory(self):
+        # To be defined for BaseCommandLineTest.
         return self.reader
 
     # Open document.
