@@ -2,7 +2,7 @@ Errors have been encountered while processing source files:
 
 {% for source_file, exception in errors.items() %}
 - {{ source_file }}:
-  {% for error in getattr(exception, 'errors', [exception]) %}
+  {% for error in exception.errors|default([exception]) %}
   - {{ error }}
   {% endfor %}
 

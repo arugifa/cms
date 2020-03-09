@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Callable, ClassVar
 
@@ -7,7 +7,7 @@ import aiofiles
 from arugifa.cms.base.processors import BaseFileProcessor
 
 
-class BaseFileHandler:
+class BaseFileHandler(ABC):
     #: Model class.
     model: ClassVar[Any]
     #: Processor class.
@@ -19,6 +19,9 @@ class BaseFileHandler:
 
         # self.logger = CustomAdapter(logger, {'source_file': self.source_file.path})
 
+    def __eq__(self, other):
+        return (self.model == other.model) and (self.processor == other.processor)
+
     @abstractmethod
     async def insert(self) -> Any:
         pass
@@ -28,7 +31,7 @@ class BaseFileHandler:
         pass
 
     @abstractmethod
-    async def rename(self) -> Any:
+    async def rename(self, target: Path) -> 'BaseFileHandler':
         pass
 
     @abstractmethod

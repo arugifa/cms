@@ -1,5 +1,4 @@
-from pathlib import Path, PurePath
-from typing import Iterable, Union
+from typing import Iterable
 
 from arugifa.toolbox.update.base import BaseUpdatePlanFailure, BaseUpdateRunFailure
 
@@ -16,8 +15,16 @@ class GitError(CMSError):
     pass
 
 
-class RepositoryNotFound(GitError):
+class GitRepositoryNotFound(GitError):
     """If a directory doesn't contain any Git repository."""
+
+
+class GitCLIError(GitError):
+    pass
+
+
+class GitUnknownCommit(GitError):
+    pass
 
 
 # Database
@@ -37,18 +44,30 @@ class FileNotVersioned(ContentError):
 
 
 class HandlerNotFound(ContentError):
-    def __init__(self, path: Union[PurePath, Path]):
-        self.path = path
 
     def __eq__(self, other):
-        return self.path == other.path
+        return self.__class__ == other.__class__
 
     def __str__(self):
         return "No handler configured"
 
 
 class HandlerChangeForbidden(ContentError):
-    pass
+    def __init__(self, original: 'BaseFileHandler', new):
+        self.original = original
+        self.new = new
+
+    def __eq__(self, other):
+        return (self.original == other.original) and (self.new == other.new)
+
+    def __str__(self):
+        original = self.original.__class__.__name__
+        new = self.new.__class__.__name__
+
+        return (
+            f"Cannot use {new} insted of {original} to handle file. "
+            f"You must keep using the same handler"
+        )
 
 
 class FileAlreadyAdded(ContentError):
@@ -67,17 +86,24 @@ class FileProcessingError(ContentError):
     pass
 
 
-class SourceParsingError(ContentError):
+class FilePathScanningError(FileProcessingError):
+    pass
+
+
+class SourceParsingError(FileProcessingError):
     """When errors raise while parsing a document."""
 
 
+class SourceMalformatted(SourceParsingError):
+    pass
+
+
 class InvalidFile(ContentError):
-    def __init__(self, path: Path, errors: Iterable[Union[FileProcessingError, SourceParsingError]]):  # noqa: E501
-        self.path = path
+    def __init__(self, errors: Iterable[FileProcessingError]):
         self.errors = errors
 
     def __eq__(self, other):
-        return (self.path == other.path) and (self.errors == other.errors)
+        return self.errors == other.errors
 
 
 # Database Update

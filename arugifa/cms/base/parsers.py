@@ -2,6 +2,7 @@ from abc import abstractstaticmethod
 from contextlib import contextmanager
 from typing import Any
 
+from arugifa.cms import exceptions
 from arugifa.cms.typing import SourceParsingErrors
 
 
@@ -20,7 +21,7 @@ class CatchParserErrors(type):
             def wrapper(self, *args, **kwargs):
                 try:
                     return func(self, *args, **kwargs)
-                except exceptions.DocumentParsingError as exc:
+                except exceptions.SourceParsingError as exc:
                     if not self._catch_errors:
                         raise
 

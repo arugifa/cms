@@ -123,7 +123,7 @@ class ContentManager:
         try:
             assert src_handler.__class__ is dst_handler.__class__
         except (AssertionError, HandlerNotFound):
-            raise exceptions.HandlerChangeForbidden(src, dst)
+            raise exceptions.HandlerChangeForbidden(src_handler, dst_handler)
 
         # Can raise DatabaseError, FileNotAddedYet, InvalidFile.
         await src_handler.rename(dst)
@@ -185,7 +185,7 @@ class ContentManager:
             if re.match(regex, str(relative_path)):
                 return handler(source_file)
         else:
-            raise HandlerNotFound(source_file)
+            raise HandlerNotFound
 
 
 class ContentUpdateRunner(BaseUpdateRunner):

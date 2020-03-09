@@ -1,5 +1,5 @@
 aiofiles==0.4.0
-git+https://github.com/arugifa/python-toolbox@dev#egg=arugifa-toolbox
+git+https://github.com/arugifa/py-toolbox@dev#egg=arugifa-toolbox
 gitdb==4.0.2
 gitpython==3.1.0
 jinja2==2.11.1

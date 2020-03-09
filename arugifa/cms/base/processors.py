@@ -7,7 +7,6 @@ import aiofiles
 
 from arugifa.cms import exceptions
 from arugifa.cms.base.parsers import BaseSourceParser
-from arugifa.cms.exceptions import FileProcessingError, SourceParsingError
 from arugifa.cms.typing import FileProcessingErrors, FileProcessingResult
 
 
@@ -27,7 +26,7 @@ class CatchProcessorErrors(type):
             async def wrapper(self, *args, **kwargs):
                 try:
                     return await func(self, *args, **kwargs)
-                except (FileProcessingError, SourceParsingError) as exc:
+                except exceptions.FileProcessingError as exc:
                     if not self._catch_errors:
                         raise
 

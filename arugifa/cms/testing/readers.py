@@ -6,11 +6,11 @@ from typing import ClassVar
 import pytest
 from arugifa.toolbox.cli.testing import BaseCommandLineTest
 
-from arugifa.cms.base.readers import BaseDocumentFileReader
+from arugifa.cms.base.readers import BaseFileReader
 
 
-class BaseDocumentReaderTest(BaseCommandLineTest):
-    reader: ClassVar[BaseDocumentFileReader] = None  # Reader class to test
+class BaseReaderTest(BaseCommandLineTest):
+    reader: ClassVar[BaseFileReader] = None  # Reader class to test
 
     @pytest.fixture
     def program_factory(self):
@@ -27,21 +27,20 @@ class BaseDocumentReaderTest(BaseCommandLineTest):
 
     # Read document.
 
-    async def test_error_happening_while_reading_document(
-            self, shell, tmp_path):
-        source_file = tmp_path / 'document.txt'
+    async def test_error_happening_while_reading_file(self, shell, tmp_path):
+        source_file = tmp_path / 'source_file.txt'
         source_file.touch()
 
         reader = self.reader(shell=shell)
-        shell.result = ("Invalid document", 1)
+        shell.result = ("Invalid file", 1)
 
         with pytest.raises(OSError) as excinfo:
             await reader(source_file).read()
 
-        assert "Invalid document" in str(excinfo)
+        assert "Invalid file" in str(excinfo)
 
     async def test_cannot_decode_reader_output(self, shell, tmp_path):
-        source_file = tmp_path / 'document.txt'
+        source_file = tmp_path / 'source_file.txt'
         source_file.touch()
 
         shell.result = sha1(b"Nich Gut!").digest()
