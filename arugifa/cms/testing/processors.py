@@ -46,7 +46,6 @@ class BaseFileProcessorTest(ABC):
                 if result is None:
                     error_count += 1
 
-            assert errors
             assert len(errors) == error_count
 
     # Load file.

@@ -10,7 +10,7 @@ class BaseSourceParserTest:
     # Collect errors.
 
     async def test_collect_errors(self):
-        parser = self.parser("Invalid source")
+        parser = self.parser('')
         error_count = 0
 
         with parser.collect_errors() as errors:
@@ -24,5 +24,4 @@ class BaseSourceParserTest:
                 if result is None:
                     error_count += 1
 
-            assert errors
             assert len(errors) == error_count

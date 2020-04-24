@@ -8,8 +8,6 @@ from arugifa.cms.base.processors import BaseFileProcessor
 
 
 class BaseFileHandler(ABC):
-    #: Model class.
-    model: ClassVar[Any]
     #: Processor class.
     processor: ClassVar[BaseFileProcessor]
 
@@ -20,7 +18,7 @@ class BaseFileHandler(ABC):
         # self.logger = CustomAdapter(logger, {'source_file': self.source_file.path})
 
     def __eq__(self, other):
-        return (self.model == other.model) and (self.processor == other.processor)
+        return self.processor == other.processor
 
     @abstractmethod
     async def insert(self) -> Any:

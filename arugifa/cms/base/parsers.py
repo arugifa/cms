@@ -36,6 +36,7 @@ class CatchParserErrors(type):
         return type.__new__(meta, classname, supers, classdict)
 
 
+# TODO: Rename to BaseFileParser (04/2020)
 class BaseSourceParser(metaclass=CatchParserErrors):
 
     def __init__(self, source: str):
@@ -52,7 +53,11 @@ class BaseSourceParser(metaclass=CatchParserErrors):
         return self._source
 
     @abstractstaticmethod
-    def deserialize(self) -> Any:
+    def deserialize(self, source: str) -> Any:
+        """XXX
+
+        :raise arugifa.cms.exceptions.SourceMalformatted: blablabla
+        """
         pass
 
     @contextmanager
