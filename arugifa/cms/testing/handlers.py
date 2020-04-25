@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import ClassVar
 
-from arugifa.cms.base.handlers import BaseFileHandler
+from arugifa.cms.handlers import BaseFileHandler
 
 
 class BaseFileHandlerTest(ABC):

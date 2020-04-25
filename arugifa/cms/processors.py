@@ -6,7 +6,7 @@ from typing import Any, Callable, ClassVar, Tuple
 import aiofiles
 
 from arugifa.cms import exceptions
-from arugifa.cms.base.parsers import BaseSourceParser
+from arugifa.cms.parsers import BaseFileParser
 from arugifa.cms.typing import FileProcessingErrors, FileProcessingResult
 
 
@@ -60,7 +60,7 @@ class CatchProcessorErrors(type):
 
 class BaseFileProcessor(metaclass=CatchProcessorErrors):
     #: File parser class.
-    parser: ClassVar[BaseSourceParser]
+    parser: ClassVar[BaseFileParser]
 
     def __init__(self, path: Path, *, reader: Callable = aiofiles.open):
         self.path = path
@@ -118,6 +118,7 @@ class BaseFileProcessor(metaclass=CatchProcessorErrors):
             self._catch_errors = False
             self._errors = set()
 
+    # TODO: Test for SourceMalformatted (04/2020)
     async def load(self) -> Any:
         """Read and prepare for parsing the source file located at :attr:`path`.
 
@@ -128,10 +129,13 @@ class BaseFileProcessor(metaclass=CatchProcessorErrors):
         if not self._source:
             try:
                 async with self.reader(self.path) as source_file:
+                    # Can raise OSError, UnicodeDecodeError:
                     content = await source_file.read()
-            except (OSError, UnicodeDecodeError) as exc:
-                raise exceptions.FileLoadingError(self, exc)
 
-            self._source = self.parser(content)
+                    # Can raise SourceMalformatted:
+                    self._source = self.parser(content)
+
+            except (OSError, exceptions.SourceMalformatted, UnicodeDecodeError) as exc:
+                raise exceptions.FileLoadingError(self, exc)
 
         return self._source

@@ -36,8 +36,7 @@ class CatchParserErrors(type):
         return type.__new__(meta, classname, supers, classdict)
 
 
-# TODO: Rename to BaseFileParser (04/2020)
-class BaseSourceParser(metaclass=CatchParserErrors):
+class BaseFileParser(metaclass=CatchParserErrors):
 
     def __init__(self, source: str):
         self._source = self.deserialize(source)

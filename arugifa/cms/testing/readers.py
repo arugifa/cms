@@ -6,7 +6,7 @@ from typing import ClassVar
 import pytest
 from arugifa.toolbox.cli.testing import BaseCommandLineTest
 
-from arugifa.cms.base.readers import BaseFileReader
+from arugifa.cms.readers import BaseFileReader
 
 
 class BaseReaderTest(BaseCommandLineTest):

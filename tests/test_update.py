@@ -7,9 +7,9 @@ import pytest
 from arugifa.toolbox.test.helpers import this_string
 
 from arugifa.cms import exceptions
-from arugifa.cms.base.handlers import BaseFileHandler
-from arugifa.cms.base.processors import BaseFileProcessor
 from arugifa.cms.exceptions import HandlerChangeForbidden
+from arugifa.cms.handlers import BaseFileHandler
+from arugifa.cms.processors import BaseFileProcessor
 from arugifa.cms.update import ContentManager, ContentUpdateRunner
 
 

@@ -4,7 +4,7 @@ from typing import Any, Callable, ClassVar
 
 import aiofiles
 
-from arugifa.cms.base.processors import BaseFileProcessor
+from arugifa.cms.processors import BaseFileProcessor
 
 
 class BaseFileHandler(ABC):

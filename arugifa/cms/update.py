@@ -12,7 +12,7 @@ from typing import Tuple, Union
 from arugifa.toolbox.update.base import BaseUpdateRunner
 
 from arugifa.cms import exceptions, templates
-from arugifa.cms.base.handlers import BaseFileHandler
+from arugifa.cms.handlers import BaseFileHandler
 from arugifa.cms.exceptions import (
     DatabaseError, HandlerChangeForbidden, HandlerNotFound, InvalidFile)
 from arugifa.cms.git import GitRepository
