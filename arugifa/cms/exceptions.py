@@ -43,6 +43,10 @@ class FileNotVersioned(ContentError):
     pass
 
 
+class DupplicatedContent(ContentError):
+    pass
+
+
 class HandlerNotFound(ContentError):
 
     def __eq__(self, other):
