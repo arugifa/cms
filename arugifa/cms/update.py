@@ -53,8 +53,9 @@ class ContentManager:
     async def add(self, src: Path) -> DatabaseItem:
         """Manually insert specific new documents into database.
 
-        :param new:
-            paths of documents source files.
+        :param src:
+            file's path, relative to repository.
+
 
         :raise arugifa.cms.exceptions.DatabaseError:
             XXX
@@ -183,7 +184,7 @@ class ContentManager:
             regex = regex = re.sub(r'\*\.(.+)', r'.+\.\1', regex)
 
             if re.match(regex, str(relative_path)):
-                return handler(source_file)
+                return handler(self.repository.path / relative_path)
         else:
             raise HandlerNotFound
 
@@ -244,6 +245,20 @@ class ContentUpdateRunner(BaseUpdateRunner):
             raise exceptions.ContentUpdateRunFailure(all_errors)
 
         return result
+
+    def sort_files(self, files):
+        handlers = OrderedDict.fromkeys(self.handlers.values())
+
+        for source_file in files:
+            handler = self.get_handler(source_file)
+
+            try:
+                handlers[handler].append(source_file)
+            except AttributeError:
+                handlers[handler] = [source_file]
+
+        return list(chain(handlers.values()))
+
 
     async def add_content(self) -> Tuple[ContentAdditionResult, ContentAdditionErrors]:
         """:raise UpdateNotPlanned: ..."""
