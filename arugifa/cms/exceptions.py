@@ -56,6 +56,7 @@ class HandlerNotFound(ContentError):
         return "No handler configured"
 
 
+# TODO: Rename to HandlerChangeNotPermitted? (04/2020)
 class HandlerChangeForbidden(ContentError):
     def __init__(self, original: 'BaseFileHandler', new):
         self.original = original

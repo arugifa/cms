@@ -4,23 +4,20 @@ Mainly base classes to be inherited by website's components.
 """
 
 import re
+from collections import OrderedDict
 from contextlib import contextmanager
 from itertools import chain
 from pathlib import Path, PurePath
-from typing import Tuple, Union
-
-from arugifa.toolbox.update.base import BaseUpdateRunner
+from typing import Iterable, Tuple, Union
 
 from arugifa.cms import exceptions, templates
-from arugifa.cms.handlers import BaseFileHandler
 from arugifa.cms.exceptions import (
     DatabaseError, HandlerChangeForbidden, HandlerNotFound, InvalidFile)
 from arugifa.cms.git import GitRepository
-from arugifa.cms.typing import (
-    ContentAdditionErrors, ContentAdditionResult, ContentDeletionErrors,
-    ContentDeletionResult, ContentHandlers, ContentModificationErrors,
-    ContentModificationResult, ContentRenamingErrors, ContentRenamingResult,
-    ContentUpdateResult, ContentUpdateTodo, DatabaseItem)
+from arugifa.cms.handlers import BaseFileHandler
+from arugifa.cms.typing import ContentHandlers, ContentUpdateResult, ContentUpdateTodo
+from arugifa.toolbox.update import UpdateStep
+from arugifa.toolbox.update.base import BaseUpdateRunner
 
 
 class ContentManager:
@@ -50,106 +47,77 @@ class ContentManager:
     def load_changes(self, since: str, **kwargs) -> 'ContentUpdateRunner':
         yield ContentUpdateRunner(self, since, **kwargs)
 
-    async def add(self, src: Path) -> DatabaseItem:
-        """Manually insert specific new documents into database.
+    async def add(self, content: Iterable[Path]) -> UpdateStep:
+        """:raise UpdateNotPlanned: ..."""
+        step = UpdateStep(result={}, errors={})
 
-        :param src:
-            file's path, relative to repository.
+        for src in content:
+            self.progress.set_description(f"Adding {src}")
 
+            try:
+                handler = self.get_handler(src)
+                step.result[src] = await handler.insert()
+            except (DatabaseError, HandlerNotFound, InvalidFile) as exc:
+                step.errors[src] = exc
 
-        :raise arugifa.cms.exceptions.DatabaseError:
-            XXX
-        :raise arugifa.cms.exceptions.FileAlreadyAdded:
-            XXX
-        :raise arugifa.cms.exceptions.FileNotVersioned:
-            when a source file is stored in a wrong directory.
-        :raise arugifa.cms.exceptions.HandlerNotFound:
-            if a document doesn't have any handler defined in :attr:`handlers`.
-        :raise arugifa.cms.exceptions.InvalidFile:
-            XXX
+            self.progress.update(1)
 
-        :return:
-            newly created documents.
-        """
-        return await self.get_handler(src).insert()
+        return step
 
-    async def modify(self, src: Path) -> DatabaseItem:
-        """Manually update specific existing documents in database.
+    async def modify(self, content: Iterable[Path]) -> UpdateStep:
+        step = UpdateStep(result={}, errors={})
 
-        :param existing:
-            paths of documents source files.
+        for src in content:
+            self.progress.set_description(f"Modifying {src}")
 
-        :raise arugifa.cms.exceptions.DatabaseError:
-            XXX
-        :raise arugifa.cms.exceptions.FileNotAddedYet:
-            XXX
-        :raise arugifa.cms.exceptions.FileNotVersioned:
-            when a source file is stored in a wrong directory.
-        :raise arugifa.cms.exceptions.HandlerNotFound:
-            if a document doesn't have any handler defined in :attr:`handlers`.
-        :raise arugifa.cms.exceptions.InvalidFile:
-            XXX
+            try:
+                handler = self.get_handler(src)
+                step.result[src] = await handler.update()
+            except (DatabaseError, HandlerNotFound, InvalidFile) as exc:
+                step.errors[src] = exc
 
-        :return:
-            updated documents.
-        """
-        return await self.get_handler(src).update()
+            self.progress.update(1)
 
-    async def rename(self, src: PurePath, dst: Path) -> DatabaseItem:
-        """Manually rename and update specific existing documents in database.
+        return step
 
-        :param existing:
-            previous and new paths of documents source files.
+    async def rename(self, content: Iterable[Tuple[PurePath, Path]]) -> UpdateStep:
+        step = UpdateStep(result={}, errors={})
 
-        :raise arugifa.cms.exceptions.DatabaseError:
-            XXX
-        :raise arugifa.cms.exceptions.FileNotAddedYet:
-            XXX
-        :raise arugifa.cms.exceptions.FileNotVersioned:
-            when a source file is stored in a wrong directory.
-        :raise arugifa.cms.exceptions.HandlerChangeForbidden:
-            when a source file is stored in a wrong directory.
-        :raise arugifa.cms.exceptions.HandlerNotFound:
-            if a document doesn't have any handler defined in :attr:`handlers`.
-        :raise arugifa.cms.exceptions.InvalidFile:
-            XXX
+        for src, dst in content:
+            self.progress.set_description(f"Renaming {src}")
 
-        :return:
-            updated documents.
-        """
-        # Can raise FileNotVersioned, HandlerNotFound.
-        src_handler = self.get_handler(src)
-        dst_handler = self.get_handler(dst)
+            try:
+                src_handler = self.get_handler(src)
+                dst_handler = self.get_handler(dst)
 
-        try:
-            assert src_handler.__class__ is dst_handler.__class__
-        except (AssertionError, HandlerNotFound):
-            raise exceptions.HandlerChangeForbidden(src_handler, dst_handler)
+                if src_handler.__class__ is not dst_handler.__class__:
+                    step.errors[src] = HandlerChangeForbidden(src, dst)
+                else:
+                    # Can raise DatabaseError, FileNotAddedYet, InvalidFile.
+                    await src_handler.rename(dst)
+                    step.result[src] = await dst_handler.update()
+            except (DatabaseError, HandlerChangeForbidden, HandlerNotFound, InvalidFile) as exc:  # noqa: E501
+                step.errors[src] = exc
 
-        # Can raise DatabaseError, FileNotAddedYet, InvalidFile.
-        await src_handler.rename(dst)
-        return await dst_handler.update()
+            self.progress.update(1)
 
-    async def delete(self, src: PurePath) -> None:
-        """Manually delete specific documents from database.
+        return step
 
-        :param removed:
-            paths of deleted documents source files.
+    async def delete(self, content: Iterable[PurePath]) -> UpdateStep:
+        step = UpdateStep(result=[], errors={})
 
-        :raise arugifa.cms.exceptions.DatabaseError:
-            XXX
-        :raise arugifa.cms.exceptions.FileNotAddedYet:
-            XXX
-        :raise arugifa.cms.exceptions.FileNotVersioned:
-            when a source file is stored in a wrong directory.
-        :raise arugifa.cms.exceptions.HandlerChangeForbidden:
-            when a source file is stored in a wrong directory.
-        :raise arugifa.cms.exceptions.HandlerNotFound:
-            if a document doesn't have any handler defined in :attr:`handlers`.
-        :raise arugifa.cms.exceptions.InvalidFile:
-            XXX
-        """
-        return await self.get_handler(src).delete()
+        for src in content:
+            self.progress.set_description(f"Deleting {src}")
+
+            try:
+                handler = self.get_handler(src)
+                await handler.delete()
+            except (DatabaseError, HandlerNotFound, InvalidFile) as exc:
+                step.errors[src] = exc
+            else:
+                step.result.append(src)
+
+        return step
 
     # Helpers
 
@@ -174,7 +142,7 @@ class ContentManager:
         else:
             relative_path = source_file
 
-        for glob_pattern, handler in self.handlers.items():
+        for glob_pattern, handler in self.manager.handlers.items():
             # Replace sub-directory wildcards:
             # <DIR>/**/*.<EXTENSION> -> <DIR>/.+/*.<EXTENSION>
             regex = re.sub(r'\*\*', r'.+', glob_pattern)
@@ -184,7 +152,7 @@ class ContentManager:
             regex = regex = re.sub(r'\*\.(.+)', r'.+\.\1', regex)
 
             if re.match(regex, str(relative_path)):
-                return handler(self.repository.path / relative_path)
+                return handler(self.manager.repository.path / relative_path)
         else:
             raise HandlerNotFound
 
@@ -225,17 +193,20 @@ class ContentUpdateRunner(BaseUpdateRunner):
         :raise ContentUpdateRunFailure: ...
         :raise UpdateNotPlanned: ...
         """
+        todo, errors = self.sort_todo()
+
+        if any(errors):
+            raise exceptions.ContentUpdateRunFailure(errors)
+
         result = {}
-        errors = {}
+        count = sum(1 for _ in chain(*todo.values()))
 
-        document_count = sum(1 for _ in chain(self.todo.values()))
-
-        with self.progress_bar(total=document_count):
-            # Can raise UpdateNotPlanned.
-            result['added'], errors['added'] = await self.add_content()
-            result['modified'], errors['modified'] = await self.modify_content()
-            result['renamed'], errors['renamed'] = await self.rename_content()
-            result['deleted'], errors['deleted'] = await self.delete_content()
+        with self.progress_bar(total=count):
+            # Can raise UpdateNotPlanned:
+            result['added'], errors['added'] = await self.manager.add(todo['to_add'])
+            result['modified'], errors['modified'] = await self.manager.modify(todo['to_modify'])  # noqa: E501
+            result['renamed'], errors['renamed'] = await self.manager.rename(todo['to_rename'])  # noqa: E501
+            result['deleted'], errors['deleted'] = await self.manager.delete(todo['to_delete'])  # noqa: E501
 
         if any(errors.values()):
             all_errors = {
@@ -246,80 +217,30 @@ class ContentUpdateRunner(BaseUpdateRunner):
 
         return result
 
-    def sort_files(self, files):
-        handlers = OrderedDict.fromkeys(self.handlers.values())
+    # Helpers
 
-        for source_file in files:
-            handler = self.get_handler(source_file)
+    def sort_todo(self) -> UpdateStep:
+        step = UpdateStep(result={}, errors={})
 
+        def get_handler(action, result, source_file):
             try:
-                handlers[handler].append(source_file)
+                handler = self.manager.get_handler(source_file)
+                result[handler].append(source_file)
+            except HandlerNotFound:
+                step.errors[source_file] = HandlerNotFound
             except AttributeError:
-                handlers[handler] = [source_file]
+                result[handler] = [source_file]
 
-        return list(chain(handlers.values()))
+        for action, files in self.todo.items():
+            result = OrderedDict.fromkeys(self.manager.handlers.values())
 
+            for source_file in files:
+                if isinstance(source_file, tuple):
+                    get_handler(action, result, source_file[0])
+                    get_handler(action, result, source_file[1])
+                else:
+                    get_handler(action, result, source_file)
 
-    async def add_content(self) -> Tuple[ContentAdditionResult, ContentAdditionErrors]:
-        """:raise UpdateNotPlanned: ..."""
-        result = {}
-        errors = {}
+            step.result[action] = list(chain(*result.values()))
 
-        for src in self.todo['to_add']:  # Can raise UpdateNotPlanned
-            self.progress.set_description(f"Adding {src}")
-
-            try:
-                result[src] = await self.manager.add(src)
-            except (DatabaseError, HandlerNotFound, InvalidFile) as exc:
-                errors[src] = exc
-
-            self.progress.update(1)
-
-        return result, errors
-
-    async def modify_content(self) -> Tuple[ContentModificationResult, ContentModificationErrors]:  # noqa: E501
-        result = {}
-        errors = {}
-
-        for src in self.todo['to_modify']:  # Can raise UpdateNotPlanned
-            self.progress.set_description(f"Modifying {src}")
-
-            try:
-                result[src] = await self.manager.modify(src)
-            except (DatabaseError, HandlerNotFound, InvalidFile) as exc:
-                errors[src] = exc
-
-            self.progress.update(1)
-
-        return result, errors
-
-    async def rename_content(self) -> Tuple[ContentRenamingResult, ContentRenamingErrors]:  # noqa: E501
-        result = {}
-        errors = {}
-
-        for src, dst in self.todo['to_rename']:  # Can raise UpdateNotPlanned
-            self.progress.set_description(f"Renaming {src}")
-
-            try:
-                result[src] = await self.manager.rename(src, dst)
-            except (DatabaseError, HandlerChangeForbidden, HandlerNotFound, InvalidFile) as exc:  # noqa: E501
-                errors[src] = exc
-
-            self.progress.update(1)
-
-        return result, errors
-
-    async def delete_content(self) -> Tuple[ContentDeletionResult, ContentDeletionErrors]:  # noqa: E501
-        result = []
-        errors = {}
-
-        for src in self.todo['to_delete']:  # Can raise UpdateNotPlanned
-            self.progress.set_description(f"Deleting {src}")
-
-            try:
-                await self.manager.delete(src)
-                result.append(src)
-            except (DatabaseError, HandlerNotFound, InvalidFile) as exc:
-                errors[src] = exc
-
-        return result, errors
+        return step

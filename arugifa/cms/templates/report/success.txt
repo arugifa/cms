@@ -1,19 +1,27 @@
+{% if result['added'] %}
 The following files have been added to database:
-{% for source_file in result['added'] %}
+{% for source_file in result['added']|sort %}
 - {{ source_file }}
 {% endfor %}
+{% endif %}
 
+{% if result['renamed'] %}
 The following files have been renamed in database:
-{% for source_file in result['renamed'] %}
+{% for source_file in result['renamed']|sort %}
 - {{ source_file }}
 {% endfor %}
+{% endif %}
 
+{% if result['modified'] %}
 The following files have been modified in database:
-{% for source_file in result['modified'] %}
+{% for source_file in result['modified']|sort %}
 - {{ source_file }}
 {% endfor %}
+{% endif %}
 
+{% if result['deleted'] %}
 The following files have been deleted from database:
-{% for source_file in result['deleted'] %}
+{% for source_file in result['deleted']|sort %}
 - {{ source_file }}
 {% endfor %}
+{% endif %}
