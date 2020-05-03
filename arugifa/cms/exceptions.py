@@ -58,7 +58,8 @@ class HandlerNotFound(ContentError):
 
 # TODO: Rename to HandlerChangeNotPermitted? (04/2020)
 class HandlerChangeForbidden(ContentError):
-    def __init__(self, original: 'BaseFileHandler', new):
+    # TODO: Remove exception arguments (05/2020)
+    def __init__(self, original: 'BaseFileHandler' = None, new: 'BaseFileHandler' = None):  # noqa: E501
         self.original = original
         self.new = new
 
